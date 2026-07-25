@@ -1,14 +1,12 @@
 """
 predict_cli.py — run your whole pipeline on a local image, no server needed.
 
-This is your fastest feedback loop while learning: point it at any photo and see
-the detections + score printed as JSON. It also (optionally) saves an annotated
-copy with boxes drawn, and can build the demo "seed" file the SDD asks for.
+Point it at a real local photo to inspect detections and scores. It can also
+save an annotated copy with the model's boxes.
 
 Examples (run from the ml/ folder with the venv active):
-    python predict_cli.py demo/images/pile.jpg
-    python predict_cli.py demo/images/pile.jpg --save-annotated
-    python predict_cli.py demo/images/*.jpg --seed demo/seed_predictions.json
+    python predict_cli.py path/to/report.jpg
+    python predict_cli.py path/to/report.jpg --save-annotated
 """
 
 from __future__ import annotations
@@ -52,7 +50,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run TrashVision inference + scoring.")
     parser.add_argument("images", nargs="+", help="image path(s) or glob(s)")
     parser.add_argument("--save-annotated", action="store_true", help="write *_annotated.jpg")
-    parser.add_argument("--seed", metavar="FILE", help="write all results to a JSON seed file")
     args = parser.parse_args()
 
     # Expand any globs the shell didn't (Windows often doesn't).
@@ -63,19 +60,12 @@ def main() -> None:
         print("No matching images found.")
         return
 
-    all_results = []
     for path in paths:
         print(f"\n### {path.name}")
         result = predict_one(path)
-        all_results.append(result)
         print(json.dumps(result, indent=2))
         if args.save_annotated:
             save_annotated(path)
-
-    if args.seed:
-        Path(args.seed).write_text(json.dumps(all_results, indent=2), encoding="utf-8")
-        print(f"\nSeed data for {len(all_results)} image(s) -> {args.seed}")
-
 
 if __name__ == "__main__":
     main()

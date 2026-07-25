@@ -18,3 +18,7 @@ services:
         sync: false
       - key: MAX_IMAGE_BYTES
         value: "5242880"
+      - key: ML_SERVICE_URL
+        sync: false
+      - key: ML_TIMEOUT_SECONDS
+        value: "60"

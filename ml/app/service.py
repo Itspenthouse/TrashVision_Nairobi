@@ -75,7 +75,6 @@ def health():
         "status": "ok",
         "model_version": settings.model_version,
         "model_loaded": _model is not None,
-        "use_coco_proxy": settings.use_coco_proxy,
     }
 
 

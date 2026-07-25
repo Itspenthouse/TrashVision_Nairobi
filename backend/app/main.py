@@ -18,7 +18,11 @@ from app.routes.reports import router as reports_router
 
 
 # This creates the FastAPI application instance.
-app = FastAPI()
+app = FastAPI(
+    title="TrashVision Nairobi API",
+    version="1.0.0",
+    description="Waste reporting and triage API for Nairobi market coordinators.",
+)
 
 # FRONTEND_ORIGINS controls which frontend URLs can call this backend.
 # In local development it can be "*"; in deployment it should be your frontend URL.
@@ -92,7 +96,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 # Root endpoint used as a simple "API is alive" message.
 @app.get("/")
 def root():
-    return {"message": "TrashVision API"}
+    return {
+        "message": "TrashVision Nairobi API",
+        "version": app.version,
+        "docs": "/docs",
+    }
 
 
 # Register the separate route groups on the main app.

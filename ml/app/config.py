@@ -34,20 +34,14 @@ class Settings(BaseSettings):
     # "yolov8n.pt" = the smallest ("n" for nano) pretrained YOLOv8. Downloaded
     # once on first run. Later, point this at your fine-tuned weights, e.g.
     # models/trashvision_best.pt — and nothing else in the code changes.
-    model_weights: str = "yolov8n.pt"
+    model_weights: str = "models/trashvision_best.pt"
 
     # A human-readable id stored with every prediction. CHANGE THIS when you
     # swap models, so every result is traceable to the model that made it.
-    model_version: str = "pretrained-yolov8n-coco-proxy-v0"
+    model_version: str = "trashvision-custom-v1"
 
     # Detections below this confidence are thrown away before scoring.
     confidence_threshold: float = 0.25
-
-    # Are we using the COCO->3-class proxy mapping (pretrained model) or a real
-    # custom model whose classes are already organic_waste/etc.?
-    # True  = pretrained demo mode (honest fallback).
-    # False = your fine-tuned model; use its native class names directly.
-    use_coco_proxy: bool = True
 
     max_image_mb: int = 10  # reject uploads bigger than this
 

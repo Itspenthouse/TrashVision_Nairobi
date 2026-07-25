@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, sta
 # Backend helpers for Supabase, response models, AI analysis, and image storage.
 from app.databases import get_supabase
 from app.models import Prediction, Report, ReportListResponse, ReviewRequest
-from app.services.ai import analyze_image
+from app.services.ai import analyze_image, analyze_image_url
 from app.services.storage import build_image_key, upload_report_image, validate_image
 
 
@@ -163,6 +163,24 @@ async def upload_report(
                 "field": "market",
             },
         )
+    if len(market) > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "too_long",
+                "message": "Market must be 100 characters or fewer.",
+                "field": "market",
+            },
+        )
+    if len(note) > 1000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "too_long",
+                "message": "Note must be 1000 characters or fewer.",
+                "field": "note",
+            },
+        )
 
     # Validate GPS/manual coordinates before saving anything.
     _validate_location(latitude, longitude)
@@ -197,7 +215,23 @@ async def upload_report(
 
     # Run the AI/scoring placeholder after the report exists.
     report_row = report_response.data[0]
-    prediction = analyze_image(image.filename or image_key, image.content_type or "", note)
+    try:
+        prediction = await analyze_image(
+            image_content,
+            image.filename or image_key,
+            image.content_type or "image/jpeg",
+        )
+    except Exception as exc:
+        get_supabase().table("reports").update({"status": "failed"}).eq(
+            "id", report_row["id"]
+        ).execute()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "inference_error",
+                "message": "The image analysis service could not process this report.",
+            },
+        ) from exc
 
     # Low-confidence predictions are sent to human review instead of marked analyzed.
     final_status = "needs_review" if prediction.max_confidence < 0.5 else "analyzed"
@@ -275,15 +309,22 @@ def get_report(report_id: str):
 
 # Re-runs analysis for a report that failed or needs a fresh prediction.
 @router.post("/reports/{report_id}/retry", response_model=Report)
-def retry_report(report_id: str):
+async def retry_report(report_id: str):
     report_row = _fetch_report(report_id)
 
-    # The current demo AI uses filename/note hints; real AI will use the stored image.
-    prediction = analyze_image(
-        report_row.get("image_url") or "report",
-        "image/jpeg",
-        report_row.get("note") or "",
-    )
+    image_url = report_row.get("image_url")
+    if not image_url:
+        raise _storage_error("The stored report image is unavailable.")
+    try:
+        prediction = await analyze_image_url(image_url)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "inference_error",
+                "message": "The image analysis service could not process this report.",
+            },
+        ) from exc
     final_status = "needs_review" if prediction.max_confidence < 0.5 else "analyzed"
 
     try:

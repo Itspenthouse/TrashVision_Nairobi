@@ -9,7 +9,7 @@ WHAT "FINE-TUNING" MEANS (the single most important ML idea for you):
   model that ALREADY learned to see edges, shapes, and textures from COCO, and
   we nudge it to recognise our 3 new classes using a small dataset. Reusing that
   prior knowledge is called TRANSFER LEARNING. It's why 200 images can be enough
-  for a demo instead of 200,000.
+  for an initial baseline instead of 200,000.
 
 RUN IT (from the ml/ folder, with the venv active):
     python training/train.py
@@ -39,7 +39,7 @@ def main() -> None:
     model.train(
         data=str(DATA_YAML),
         # --- The knobs you'll actually tune ---
-        epochs=50,          # how many times we loop over the whole dataset.
+        epochs=25,          # practical baseline; early stopping still applies.
         imgsz=640,          # images are resized to 640x640 for training.
         batch=8,            # images processed at once. Lower if you run out of RAM.
         patience=15,        # stop early if validation hasn't improved in 15 epochs.
@@ -50,7 +50,7 @@ def main() -> None:
         exist_ok=True,
         # CPU-only machine (no GPU) -> device="cpu". Training will be slow-ish;
         # that's expected. A small dataset + nano model keeps it manageable.
-        device="cpu",
+        device=None,        # automatically uses a GPU when one is available.
     )
 
     # Evaluate the best checkpoint on the held-out VALIDATION set and print the

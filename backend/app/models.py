@@ -51,4 +51,4 @@ class ReportListResponse(BaseModel):
 
 # Body accepted by the review endpoint.
 class ReviewRequest(BaseModel):
-    reviewer_alias: str | None = None
+    reviewer_alias: str | None = Field(default=None, max_length=80)

@@ -5,7 +5,7 @@ Run these with:  pytest -v
 
 Each `test_...` function is one claim about our code. pytest runs them and an
 `assert` that fails turns the test red. This is how you catch the day you
-accidentally change a weight and break the demo. The SDD explicitly requires
+accidentally change a weight and break production behavior. The SDD explicitly requires
 testing "scoring boundaries" — that's exactly what we do here.
 """
 

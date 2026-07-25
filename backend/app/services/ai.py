@@ -1,58 +1,50 @@
-from time import perf_counter
+import os
+
+import httpx
 
 from app.models import Detection, Prediction
-from app.services.scoring import calculate_score
 
 
-# This identifies the current AI implementation.
-# Your AI teammate can change this when they plug in a real model.
-MODEL_VERSION = "demo-heuristic-v1"
+ML_SERVICE_URL = os.getenv("ML_SERVICE_URL", "http://127.0.0.1:8001").rstrip("/")
+ML_TIMEOUT_SECONDS = float(os.getenv("ML_TIMEOUT_SECONDS", "60"))
 
 
-# Temporary AI function used until the real model is connected.
-# It keeps the backend/frontend contract stable for your team.
-def analyze_image(filename: str, content_type: str, note: str = "") -> Prediction:
-    # Track rough inference time so the API already returns inference_ms.
-    started_at = perf_counter()
-
-    # The demo version looks for keywords in filename/note.
-    # Real AI will inspect image bytes or an image URL instead.
-    text = f"{filename} {content_type} {note}".lower()
-    detections: list[Detection] = []
-
-    # Add a drain blockage detection if text hints at drains/flooding.
-    if any(term in text for term in ("drain", "block", "blocked", "flood")):
-        detections.append(Detection(label="drain_blockage", confidence=0.72))
-
-    # Add a standing water detection if text hints at stagnant water.
-    if any(term in text for term in ("water", "standing", "stagnant")):
-        detections.append(Detection(label="standing_water", confidence=0.68))
-
-    # Add organic waste detection if text hints at trash or market waste.
-    if any(term in text for term in ("waste", "trash", "garbage", "organic", "market")):
-        detections.append(Detection(label="organic_waste", confidence=0.64))
-
-    # If nothing obvious is found, return a low-confidence default.
-    if not detections:
-        detections.append(Detection(label="organic_waste", confidence=0.42))
-
-    # max_confidence is used to decide analyzed vs needs_review.
-    max_confidence = max(detection.confidence for detection in detections)
-
-    # Convert detections into severity score, risk proxy, priority, and explanation.
-    severity_score, risk_proxy, priority, explanation = calculate_score(detections)
-
-    # Calculate how long this analysis took in milliseconds.
-    inference_ms = max(1, round((perf_counter() - started_at) * 1000))
-
-    # Return the prediction in the same structure the real model should use later.
+def _prediction_from_ml(payload: dict) -> Prediction:
+    detections = [
+        Detection(label=item["class_name"], confidence=item["confidence"])
+        for item in payload.get("detections", [])
+    ]
     return Prediction(
-        model_version=MODEL_VERSION,
+        model_version=payload["model_version"],
         classes=detections,
-        max_confidence=max_confidence,
-        severity_score=severity_score,
-        risk_proxy=risk_proxy,
-        priority=priority,
-        explanation=explanation,
-        inference_ms=inference_ms,
+        max_confidence=payload["max_confidence"],
+        severity_score=payload["severity_score"],
+        risk_proxy=payload["risk_proxy"],
+        priority=payload["priority"],
+        explanation=payload["explanation"],
+        inference_ms=round(payload["inference_ms"]),
     )
+
+
+async def analyze_image(
+    image_content: bytes,
+    filename: str,
+    content_type: str,
+) -> Prediction:
+    async with httpx.AsyncClient(timeout=ML_TIMEOUT_SECONDS) as client:
+        response = await client.post(
+            f"{ML_SERVICE_URL}/predict",
+            files={"image": (filename, image_content, content_type)},
+        )
+        response.raise_for_status()
+        return _prediction_from_ml(response.json())
+
+
+async def analyze_image_url(image_url: str) -> Prediction:
+    async with httpx.AsyncClient(timeout=ML_TIMEOUT_SECONDS) as client:
+        image_response = await client.get(image_url)
+        image_response.raise_for_status()
+        content_type = image_response.headers.get("content-type", "image/jpeg")
+
+    filename = image_url.rsplit("/", 1)[-1].split("?", 1)[0] or "report.jpg"
+    return await analyze_image(image_response.content, filename, content_type)

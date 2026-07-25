@@ -10,7 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   :root{
-    --canvas:#10161A; --surface:#1A2226; --surface-raised:#212B2F; --surface-hover:#263136;
+    --canvas:#111615; --surface:#1B2220; --surface-raised:#242C29; --surface-hover:#29332F;
     --border:#2B363B; --border-soft:#232D31;
     --ink:#EDF1EF; --ink-muted:#9BA9A6; --ink-faint:#647171;
     --brand:#2FA8A0; --brand-dim:#1F6E68; --brand-bright:#5FD4CA;
@@ -28,6 +28,9 @@
   .font-mono{font-family:'IBM Plex Mono',monospace;}
   a{color:inherit; text-decoration:none;}
   button{font-family:inherit; cursor:pointer;}
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--brand-bright); outline-offset:3px;
+  }
   ::selection{background:rgba(47,168,160,.3); color:var(--ink);}
 
   /* ---------- Nav ---------- */
@@ -59,6 +62,8 @@
     border-radius:999px; padding:5px 10px; font-size:10px; color:var(--ink-faint);
   }
   .mode-dot{width:6px; height:6px; border-radius:50%; background:var(--medium);}
+  .mode-pill.live .mode-dot{background:var(--brand-bright);}
+  .mode-pill.error .mode-dot{background:var(--urgent);}
 
   main{max-width:1100px; margin:0 auto; padding:32px 20px 80px;}
   .view{display:none;}
@@ -67,6 +72,20 @@
   /* ---------- Home ---------- */
   .hero{display:grid; grid-template-columns:1.3fr .7fr; gap:40px; align-items:center; margin-bottom:56px;}
   @media(max-width:800px){.hero{grid-template-columns:1fr;}}
+  @media(max-width:620px){
+    .topbar-inner{align-items:flex-start;flex-wrap:wrap;}
+    nav.tabs{order:3;width:100%;border-radius:var(--radius);}
+    nav.tabs button{flex:1;padding-inline:8px;}
+    main{padding:24px 14px 64px;}
+    h1.headline{font-size:32px;}
+    .info-grid{grid-template-columns:1fr;}
+    .count-row{width:100%;display:grid;grid-template-columns:repeat(4,1fr);}
+    .count-chip{min-width:0;padding:8px 4px;}
+    .map-wrap{height:62vh;min-height:420px;}
+    .report-card{display:grid;grid-template-columns:64px 1fr;}
+    .rc-thumb{width:64px;height:64px;}
+    .rc-dial{display:none;}
+  }
   .eyebrow{font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.2em;
     text-transform:uppercase; color:var(--brand-bright); margin:0 0 14px;}
   h1.headline{font-family:'Space Grotesk',sans-serif; font-size:42px; line-height:1.15;
@@ -246,7 +265,7 @@
 
 <header class="topbar">
   <div class="topbar-inner">
-    <div class="brand-mark" onclick="navigate('home')">
+    <div class="brand-mark" onclick="navigate('home')" role="button" tabindex="0" aria-label="TrashVision home">
       <span class="brand-dot"></span>
       <span class="brand-name">TRASHVISION <span>NAIROBI</span></span>
     </div>
@@ -255,7 +274,7 @@
       <button data-tab="dashboard" onclick="navigate('dashboard')">Dashboard</button>
       <button data-tab="map" onclick="navigate('map')">Map</button>
     </nav>
-    <div class="mode-pill"><span class="mode-dot"></span>mock data</div>
+    <div class="mode-pill" id="connection-mode" title="Backend connection status"><span class="mode-dot"></span><span id="connection-label">connecting</span></div>
   </div>
 </header>
 
@@ -399,57 +418,15 @@
 </main>
 
 <script>
-/* ======================================================================
-   TrashVision Nairobi: single-file demo build (HTML/CSS/JS)
-   Mirrors the SDD's API contract shape (lib/types.ts equivalent below)
-   and scoring formulas (SDD 4.3), running entirely on seeded mock data
-   with simulated inference, no backend required.
-   ====================================================================== */
+/* TrashVision browser client. All report and prediction data comes from the API. */
 
 const PRIORITY_HEX = { low:'#4C8C6B', medium:'#D9A441', high:'#E4772A', urgent:'#D6392B' };
+const API_BASE = (window.TRASHVISION_API_URL || localStorage.getItem('trashvision_api_url') || 'http://127.0.0.1:8000').replace(/\/$/, '');
 const MARKET_COORDS = {
   Wakulima:{lat:-1.2841, lng:36.8296},
   Gikomba:{lat:-1.2864, lng:36.8318},
   Muthurwa:{lat:-1.2963, lng:36.8329},
 };
-const DEMO_IMAGES = [
-  "https://images.unsplash.com/photo-1621451537084-482c73073a0f?w=800&q=60",
-  "https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?w=800&q=60",
-  "https://images.unsplash.com/photo-1611273426858-450d8e3c9fce?w=800&q=60",
-  "https://images.unsplash.com/photo-1583258292688-d0213dc5a3a8?w=800&q=60",
-  "https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?w=800&q=60",
-  "https://images.unsplash.com/photo-1567113463300-102a7eb3cb26?w=800&q=60",
-];
-
-let idCounter = 100;
-function nextId(prefix){ idCounter += 1; return prefix + '_' + idCounter; }
-function jitter(n, spread){ spread = spread || 0.004; return n + (Math.random()-0.5)*spread; }
-function clamp01(n){ return Math.min(1, Math.max(0, n)); }
-
-/* ---------- Scoring (SDD 4.3) ---------- */
-function evidenceFor(detections, cls){
-  const hit = detections.find(d => d.cls === cls);
-  return hit ? hit.coverage : 0;
-}
-function computeSeverity(detections, maxConfidence){
-  const waste = evidenceFor(detections, 'organic_waste');
-  const blockage = evidenceFor(detections, 'drain_blockage');
-  const water = evidenceFor(detections, 'standing_water');
-  const score = 0.45*waste + 0.25*blockage + 0.2*water + 0.1*maxConfidence;
-  return Math.round(clamp01(score)*100);
-}
-function computeRiskProxy(detections, severityScore){
-  const blockage = evidenceFor(detections, 'drain_blockage');
-  const water = evidenceFor(detections, 'standing_water');
-  const score = 0.55*blockage + 0.35*water + 0.1*(severityScore/100);
-  return Math.round(clamp01(score)*100);
-}
-function priorityFromScore(score){
-  if (score >= 80) return 'urgent';
-  if (score >= 55) return 'high';
-  if (score >= 30) return 'medium';
-  return 'low';
-}
 function labelFor(cls){
   return { organic_waste:'Organic waste', drain_blockage:'Drain blockage', standing_water:'Standing water' }[cls];
 }
@@ -457,59 +434,71 @@ function explanationFor(detections, severity, risk){
   const parts = detections.map(d => labelFor(d.cls) + ' evidence ' + Math.round(d.coverage*100) + '%').join(', ');
   return (parts || 'No strong detections') + ' → severity ' + severity + '/100, flood-risk proxy ' + risk + '/100 (visible-condition estimate, not a weather forecast).';
 }
-function buildPrediction(reportId, detections){
-  const maxConfidence = detections.length ? Math.max(...detections.map(d=>d.confidence)) : 0;
-  const severityScore = computeSeverity(detections, maxConfidence);
-  const riskProxy = computeRiskProxy(detections, severityScore);
+function normalizePrediction(prediction){
+  if (!prediction) return undefined;
   return {
-    id: nextId('pred'), reportId, modelVersion:'yolo-v8n-tv-0.3.1', detections, maxConfidence,
-    severityScore, riskProxy, priority: priorityFromScore(severityScore),
-    explanation: explanationFor(detections, severityScore, riskProxy),
-    inferenceMs: 180 + Math.round(Math.random()*260),
+    modelVersion: prediction.model_version,
+    detections: (prediction.classes || []).map(item => ({
+      cls: item.label,
+      confidence: item.confidence,
+      coverage: item.confidence,
+    })),
+    maxConfidence: prediction.max_confidence,
+    severityScore: prediction.severity_score,
+    riskProxy: prediction.risk_proxy,
+    priority: prediction.priority,
+    explanation: prediction.explanation,
+    inferenceMs: prediction.inference_ms,
   };
 }
-function randomDetections(){
-  const pool = ['organic_waste','drain_blockage','standing_water'];
-  const count = 1 + Math.floor(Math.random()*3);
-  const chosen = [...pool].sort(()=>Math.random()-0.5).slice(0,count);
-  return chosen.map(cls => ({
-    cls, confidence: Math.round((0.4+Math.random()*0.55)*100)/100,
-    coverage: Math.round((0.25+Math.random()*0.65)*100)/100,
-  }));
-}
-
-/* ---------- Seed data ---------- */
-function seedReport(market, detections, status, note, image, daysAgo){
-  const id = nextId('rep');
-  const coords = MARKET_COORDS[market];
-  const createdAt = new Date(Date.now() - daysAgo*86400000).toISOString();
-  const prediction = status === 'failed' ? undefined : buildPrediction(id, detections);
+function normalizeReport(report){
   return {
-    id, market, latitude: jitter(coords.lat), longitude: jitter(coords.lng), note, imageUrl:image,
-    status, createdAt,
-    reviewedAt: status === 'reviewed' ? new Date(Date.now()-(daysAgo-1)*86400000).toISOString() : undefined,
-    prediction,
+    id: String(report.id),
+    market: report.market,
+    latitude: report.latitude,
+    longitude: report.longitude,
+    note: report.note,
+    imageUrl: report.image_url,
+    status: report.status,
+    createdAt: report.created_at,
+    reviewedAt: report.reviewed_at,
+    prediction: normalizePrediction(report.prediction),
   };
 }
-function seedInitialReports(){
-  return [
-    seedReport('Wakulima', [{cls:'organic_waste',confidence:0.91,coverage:0.82},{cls:'drain_blockage',confidence:0.74,coverage:0.6}],
-      'reviewed', 'Pile of vegetable offcuts blocking the side drain near gate 3.', DEMO_IMAGES[0], 5),
-    seedReport('Gikomba', [{cls:'standing_water',confidence:0.88,coverage:0.7},{cls:'drain_blockage',confidence:0.69,coverage:0.55}],
-      'analyzed', "Standing water after yesterday's rain, smells stagnant.", DEMO_IMAGES[1], 3),
-    seedReport('Muthurwa', [{cls:'organic_waste',confidence:0.95,coverage:0.9}],
-      'analyzed', 'Large uncollected waste heap behind the produce stalls.', DEMO_IMAGES[2], 2),
-    seedReport('Wakulima', [{cls:'organic_waste',confidence:0.38,coverage:0.22}],
-      'needs_review', 'Not sure if this is fresh waste or just wet cardboard.', DEMO_IMAGES[3], 1),
-    seedReport('Gikomba', [], 'failed', 'Photo taken in very low light near the covered section.', DEMO_IMAGES[4], 1),
-    seedReport('Muthurwa', [{cls:'drain_blockage',confidence:0.83,coverage:0.65},{cls:'standing_water',confidence:0.8,coverage:0.62},{cls:'organic_waste',confidence:0.7,coverage:0.5}],
-      'reviewed', 'Combined waste and blocked culvert entrance, urgent-looking.', DEMO_IMAGES[5], 0),
-  ];
+async function apiRequest(path, options){
+  const response = await fetch(API_BASE + path, options);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.message || 'The request could not be completed.');
+  return body;
+}
+function setConnectionMode(mode, label){
+  const pill = document.getElementById('connection-mode');
+  pill.classList.toggle('live', mode === 'live');
+  pill.classList.toggle('error', mode === 'error');
+  document.getElementById('connection-label').textContent = label;
+}
+async function loadReports(){
+  try {
+    const body = await apiRequest('/api/v1/reports');
+    state.reports = body.reports.map(normalizeReport);
+    state.apiOnline = true;
+    setConnectionMode('live', 'live API');
+  } catch (error) {
+    state.apiOnline = false;
+    state.loadError = error.message;
+    state.reports = [];
+    setConnectionMode('error', 'API unavailable');
+  }
+  if (state.view === 'dashboard') renderDashboard();
+  if (state.view === 'map') renderMapMarkers();
+  renderHome();
 }
 
 /* ---------- App state ---------- */
 const state = {
-  reports: seedInitialReports(),
+  reports: [],
+  apiOnline: false,
+  loadError: '',
   view: 'home',
   currentId: null,
   filters: { status:'', priority:'', market:'' },
@@ -531,7 +520,10 @@ function navigate(view, id){
   window.scrollTo(0,0);
 
   if (view === 'home') renderHome();
-  if (view === 'dashboard') renderDashboard();
+  if (view === 'dashboard') {
+    renderDashboard();
+    if (state.apiOnline) loadReports();
+  }
   if (view === 'map') renderMap();
   if (view === 'detail') renderDetail(id);
 }
@@ -626,7 +618,7 @@ function showFormError(msg){
   const el = document.getElementById('form-error');
   el.textContent = msg; el.style.display = 'block';
 }
-function handleSubmitReport(e){
+async function handleSubmitReport(e){
   e.preventDefault();
   const errEl = document.getElementById('form-error');
   errEl.style.display = 'none';
@@ -643,36 +635,25 @@ function handleSubmitReport(e){
   const btn = document.getElementById('submit-btn');
   btn.disabled = true; btn.textContent = 'Uploading…';
 
-  setTimeout(() => {
-    const id = nextId('rep');
-    const report = {
-      id, market, latitude: lat, longitude: lng, note: note || undefined,
-      imageUrl: state.pendingImageUrl, status: 'pending', createdAt: new Date().toISOString(),
-    };
+  const formData = new FormData();
+  formData.append('market', market);
+  formData.append('latitude', lat);
+  formData.append('longitude', lng);
+  formData.append('note', note);
+  formData.append('image', document.getElementById('file-input').files[0]);
+  try {
+    const report = normalizeReport(await apiRequest('/api/v1/reports', { method:'POST', body:formData }));
     state.reports.unshift(report);
-
-    // simulate async inference
-    setTimeout(() => {
-      const r = state.reports.find(r => r.id === id);
-      if (!r) return;
-      const failed = Math.random() < 0.08;
-      if (failed){
-        r.status = 'failed';
-      } else {
-        const detections = randomDetections();
-        const prediction = buildPrediction(id, detections);
-        r.status = prediction.maxConfidence < 0.5 ? 'needs_review' : 'analyzed';
-        r.prediction = prediction;
-      }
-      if (state.view === 'detail' && state.currentId === id) renderDetail(id);
-      if (state.view === 'dashboard') renderDashboard();
-    }, 1800);
-
-    btn.disabled = false; btn.textContent = 'Submit report';
+    state.apiOnline = true;
+    setConnectionMode('live', 'live API');
     resetReportForm();
-    navigate('detail', id);
-  }, 700);
-
+    navigate('detail', report.id);
+  } catch (error) {
+    showFormError(error.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Submit report';
+  }
   return false;
 }
 function resetReportForm(){
@@ -718,6 +699,10 @@ function renderDashboard(){
   document.getElementById('filter-count').textContent = list.length + ' / ' + state.reports.length;
 
   const listEl = document.getElementById('report-list');
+  if (state.loadError){
+    listEl.innerHTML = `<div class="state-block state-error"><p class="t">Reports are unavailable</p><p class="state-hint">${escapeHTML(state.loadError)} Check the API connection and try again.</p></div>`;
+    return;
+  }
   if (list.length === 0){
     listEl.innerHTML = `<div class="state-block state-empty"><p class="t">No reports match these filters</p><p class="state-hint">Try clearing a filter, or submit a new report.</p></div>`;
     return;
@@ -726,12 +711,13 @@ function renderDashboard(){
 }
 function reportCardHTML(r){
   const p = r.prediction;
+  const imageStyle = r.imageUrl ? `style="background-image:url('${encodeURI(r.imageUrl).replace(/'/g, '%27')}')"` : '';
   return `
     <button class="report-card" onclick="navigate('detail','${r.id}')">
-      <div class="rc-thumb" style="background-image:url(${r.imageUrl})"></div>
+      <div class="rc-thumb" ${imageStyle}></div>
       <div class="rc-body">
         <div class="rc-top">
-          <span class="rc-market">${r.market}</span>
+          <span class="rc-market">${escapeHTML(r.market)}</span>
           ${statusHTML(r.status)}
         </div>
         <div class="rc-note">${r.note ? escapeHTML(r.note) : 'No note provided.'}</div>
@@ -783,7 +769,7 @@ function renderMapMarkers(){
     const marker = L.circleMarker([r.latitude, r.longitude], { radius, color, fillColor:color, fillOpacity:.55, weight:2 }).addTo(leafletMap);
     const popupHtml = `
       <div class="popup-inner">
-        <p class="m">${r.market}</p>
+        <p class="m">${escapeHTML(r.market)}</p>
         ${r.prediction
           ? `${badgeHTML(r.prediction.priority)}<p class="s">Severity ${r.prediction.severityScore}/100</p>`
           : `<p class="s">${r.status.replace('_',' ')}</p>`}
@@ -825,13 +811,13 @@ function renderDetail(id){
     <a class="back-link" href="javascript:void(0)" onclick="navigate('dashboard')">← Back to dashboard</a>
     <div class="detail-head">
       <div>
-        <h1>${r.market}</h1>
+        <h1>${escapeHTML(r.market)}</h1>
         <div class="detail-coords">${fmtCoord(r.latitude)}, ${fmtCoord(r.longitude)} · ${relativeTime(r.createdAt)}</div>
       </div>
       ${p ? dialSVG(p.severityScore, p.priority, 72, 'Severity') : ''}
     </div>
     <div class="stepper">${stepperHTML}</div>
-    <div class="detail-image" style="background-image:url(${r.imageUrl})"></div>`;
+    <div class="detail-image" ${r.imageUrl ? `style="background-image:url('${encodeURI(r.imageUrl).replace(/'/g, '%27')}')"` : ''}></div>`;
 
   if (r.note){
     html += `<div class="panel note-panel"><p class="lbl">Reporter note</p><p class="txt">${escapeHTML(r.note)}</p></div>`;
@@ -879,30 +865,48 @@ function renderDetail(id){
 
   el.innerHTML = html;
 }
-function retryReport(id){
+async function retryReport(id){
   const r = state.reports.find(r => r.id === id);
   if (!r) return;
-  r.status = 'pending'; r.prediction = undefined;
+  r.status = 'pending';
+  r.prediction = undefined;
   renderDetail(id);
-  setTimeout(() => {
-    const detections = randomDetections();
-    r.prediction = buildPrediction(id, detections);
-    r.status = 'analyzed';
-    if (state.view === 'detail' && state.currentId === id) renderDetail(id);
-  }, 1500);
+  try {
+    const updated = normalizeReport(await apiRequest(`/api/v1/reports/${encodeURIComponent(id)}/retry`, { method:'POST' }));
+    Object.assign(r, updated);
+  } catch (error) {
+    r.status = 'failed';
+    alert(error.message);
+  }
+  renderDetail(id);
 }
-function reviewReport(id, newStatus){
+async function reviewReport(id, newStatus){
   const r = state.reports.find(r => r.id === id);
   if (!r) return;
-  r.status = newStatus;
-  if (newStatus === 'reviewed') r.reviewedAt = new Date().toISOString();
-  renderDetail(id);
-  if (state.view === 'dashboard') renderDashboard();
+  if (newStatus === 'reviewed'){
+    try {
+      const updated = normalizeReport(await apiRequest(`/api/v1/reports/${encodeURIComponent(id)}/review`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({}),
+      }));
+      Object.assign(r, updated);
+      renderDetail(id);
+    } catch (error) {
+      alert(error.message);
+    }
+    return;
+  }
+  alert('Flagging a report requires a backend review endpoint and is not simulated.');
 }
 
 /* ---------- Boot ---------- */
 initReportForm();
 navigate('home');
+loadReports();
+document.querySelector('.brand-mark').addEventListener('keydown', event => {
+  if (event.key === 'Enter' || event.key === ' ') navigate('home');
+});
 </script>
 </body>
 </html>

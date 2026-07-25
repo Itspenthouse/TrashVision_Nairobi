@@ -74,7 +74,7 @@ Images go in `dataset/images/{train,val,test}/`, labels in the matching
       same scene in the **same** split (prevents "leakage" that fakes good scores).
 - [ ] At least **20%** of labels peer-checked by a second person.
 - [ ] **Privacy:** no faces, no vehicle plates, no personal details. Blur or
-      exclude. Use only consented/licensed images. Delete demo data after the event.
+      exclude. Use only consented or properly licensed images.
 
 ---
 
