@@ -1,7 +1,9 @@
 # --- Python ---
 .venv/
+.venv313/
 __pycache__/
 *.pyc
+*.cache
 .pytest_cache/
 
 # --- Secrets / local config ---
@@ -15,6 +17,7 @@ __pycache__/
 
 # YOLO auto-downloads and training outputs
 training/runs/
+training/.data.resolved.yaml
 
 # Your raw dataset images/labels. Store/share these deliberately (SDD: consented,
 # licensed images only). Uncomment if you decide to keep them out of git:

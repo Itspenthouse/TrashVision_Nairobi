@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>TrashVision Nairobi</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="hgit statttps://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -573,8 +573,24 @@ function fmtCoord(n){ return n.toFixed(4); }
 
 /* ---------- Home ---------- */
 function renderHome(){
+  const predictions = state.reports.map(report => report.prediction).filter(Boolean);
+  const average = predictions.length
+    ? Math.round(predictions.reduce((sum, item) => sum + item.severityScore, 0) / predictions.length)
+    : 0;
+  const priority = priorityFromSeverity(average);
+  const urgent = predictions.filter(item => item.priority === 'urgent').length;
+  const review = state.reports.filter(report => report.status === 'needs_review').length;
   document.getElementById('home-dials').innerHTML =
-    dialSVG(24,'low',72,'Low') + dialSVG(42,'medium',72,'Medium') + dialSVG(68,'high',72,'High') + dialSVG(91,'urgent',72,'Urgent');
+    dialSVG(average, priority, 86, 'Average severity') +
+    `<div class="count-chip"><div class="n">${state.reports.length}</div><div class="l">Reports</div></div>` +
+    `<div class="count-chip"><div class="n">${urgent}</div><div class="l">Urgent</div></div>` +
+    `<div class="count-chip"><div class="n">${review}</div><div class="l">Needs review</div></div>`;
+}
+function priorityFromSeverity(score){
+  if (score >= 80) return 'urgent';
+  if (score >= 55) return 'high';
+  if (score >= 30) return 'medium';
+  return 'low';
 }
 
 /* ---------- Report form ---------- */

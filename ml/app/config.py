@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     # A human-readable id stored with every prediction. CHANGE THIS when you
     # swap models, so every result is traceable to the model that made it.
-    model_version: str = "trashvision-custom-v1"
+    model_version: str = "trashvision-taco-food-v0.1-experimental"
 
     # Detections below this confidence are thrown away before scoring.
     confidence_threshold: float = 0.25

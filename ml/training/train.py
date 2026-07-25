@@ -21,23 +21,42 @@ Outputs land in training/runs/detect/trashvision/weights/:
 Then point the service at it by setting in .env:
     MODEL_WEIGHTS=training/runs/detect/trashvision/weights/best.pt
     MODEL_VERSION=trashvision-yolov8n-v1
-    USE_COCO_PROXY=false          # your model already outputs the 3 real classes
 """
 
 from pathlib import Path
 
+import yaml
 from ultralytics import YOLO
 
 HERE = Path(__file__).resolve().parent
-DATA_YAML = HERE / "data.yaml"
+DATASET = HERE / "dataset"
+RUNTIME_DATA_YAML = HERE / ".data.resolved.yaml"
 
 
 def main() -> None:
+    RUNTIME_DATA_YAML.write_text(
+        yaml.safe_dump(
+            {
+                "path": DATASET.as_posix(),
+                "train": "images/train",
+                "val": "images/val",
+                "test": "images/test",
+                "names": {
+                    0: "organic_waste",
+                    1: "drain_blockage",
+                    2: "standing_water",
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
     # Start from the small pretrained model (transfer learning).
     model = YOLO("yolov8n.pt")
 
     model.train(
-        data=str(DATA_YAML),
+        data=str(RUNTIME_DATA_YAML),
         # --- The knobs you'll actually tune ---
         epochs=25,          # practical baseline; early stopping still applies.
         imgsz=640,          # images are resized to 640x640 for training.

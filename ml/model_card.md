@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Version | `trashvision-custom-v1` |
+| Version | `trashvision-taco-food-v0.1-experimental` |
 | Architecture | YOLOv8 nano transfer learning |
 | Task | Object detection |
 | Classes | `organic_waste`, `drain_blockage`, `standing_water` |
@@ -33,12 +33,14 @@ is promoted:
 
 | Metric | Current value |
 |---|---|
-| mAP50 | Not yet measured |
-| mAP50-95 | Not yet measured |
-| Per-class precision | Not yet measured |
-| Per-class recall | Not yet measured |
+| mAP50 | 0.000 |
+| mAP50-95 | 0.000 |
+| Per-class precision | 0.000 on the one-image validation split |
+| Per-class recall | 0.000 on the one-image validation split |
 
-A checkpoint without these measurements is experimental.
+The July 25, 2026 baseline used five training, one validation, and one test
+image. Its checkpoint exists only to exercise service integration and is not
+suitable for real-world decisions.
 
 ## Known limitations
 
