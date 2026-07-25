@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: trashvision-api
+    env: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE
+        sync: false
+      - key: BUCKET_NAME
+        value: reports
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: MAX_IMAGE_BYTES
+        value: "5242880"

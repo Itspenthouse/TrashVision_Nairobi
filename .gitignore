@@ -1,0 +1,9 @@
+.env
+key_github
+key_github.pub
+venv/
+__pycache__/
+*.pyc
+.vscode/
+.agents/
+.codex/
