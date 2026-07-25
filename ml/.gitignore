@@ -1,0 +1,26 @@
+# --- Python ---
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# --- Secrets / local config ---
+.env
+
+# --- Big binary artifacts that DON'T belong in git ---
+# Model weights (can be hundreds of MB). Share these via releases / cloud, not git.
+*.pt
+# ...except keep the tiny placeholder note if you add one:
+!models/.gitkeep
+
+# YOLO auto-downloads and training outputs
+training/runs/
+
+# Your raw dataset images/labels. Store/share these deliberately (SDD: consented,
+# licensed images only). Uncomment if you decide to keep them out of git:
+# training/dataset/images/
+# training/dataset/labels/
+
+# OS noise
+.DS_Store
+Thumbs.db
