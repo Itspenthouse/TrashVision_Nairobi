@@ -1,0 +1,12 @@
+# TrashVision ML service — Python 3.13
+# --- AI / computer vision ---
+ultralytics==8.3.40      # YOLO object detection (pulls in torch, opencv, pillow, numpy)
+# --- API layer ---
+fastapi==0.115.5         # web framework for the /predict and /health endpoints
+uvicorn[standard]==0.32.1 # the server that runs FastAPI
+python-multipart==0.0.12 # lets FastAPI accept uploaded image files
+pydantic==2.10.3         # data validation / the "contract" schemas
+pydantic-settings==2.6.1 # reads config from .env
+# --- testing ---
+pytest==8.3.4            # runs our unit tests
+httpx==0.28.1            # test client for hitting the API in tests

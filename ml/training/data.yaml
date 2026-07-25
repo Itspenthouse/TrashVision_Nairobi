@@ -1,0 +1,25 @@
+# data.yaml — tells YOLO where your dataset lives and what the classes are.
+# This is THE config you edit when you start training a real custom model.
+#
+# Folder layout YOLO expects (we already created these empty folders):
+#   training/dataset/
+#     images/train/  images/val/  images/test/   <- the .jpg/.png files
+#     labels/train/  labels/val/  labels/test/   <- one .txt per image (see below)
+#
+# LABEL FILE FORMAT: for an image "market1.jpg", you create "market1.txt" with
+# one line per object:
+#     <class_id> <x_center> <y_center> <width> <height>
+# All 4 numbers are FRACTIONS of image size (0..1), not pixels. A labeling tool
+# (Roboflow, LabelImg, CVAT) writes these for you — you just draw the boxes.
+
+path: ./dataset          # root, relative to this data.yaml
+train: images/train
+val: images/val
+test: images/test
+
+# The class_id in the label files maps to these names, in THIS order.
+# (0 -> organic_waste, 1 -> drain_blockage, 2 -> standing_water)
+names:
+  0: organic_waste
+  1: drain_blockage
+  2: standing_water
